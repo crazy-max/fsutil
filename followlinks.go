@@ -130,7 +130,7 @@ func (r *symlinkResolver) readSymlink(p string, allowWildcard bool) ([]string, e
 		return []string{link}, nil
 	}
 	return []string{
-		filepath.Join(string(filepath.Separator), filepath.Join(filepath.Dir(p), link)),
+		filepath.Join(filepath.Join(filepath.Dir(p), link)),
 	}, nil
 }
 

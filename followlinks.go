@@ -125,20 +125,20 @@ func (r *symlinkResolver) readSymlink(p string, allowWildcard bool) ([]string, e
 		return nil, errors.WithStack(&os.PathError{Path: p, Err: syscall.EBADMSG, Op: "fileinfo without stat info"})
 	}
 
-	link := filepath.FromSlash(filepath.Clean(stat.Linkname))
+	link := filepath.Clean(stat.Linkname)
 	if filepath.IsAbs(link) {
 		return []string{link}, nil
 	}
 	return []string{
-		filepath.Join(filepath.Join(filepath.Dir(p), link)),
+		filepath.Join(string(filepath.Separator), filepath.Join(filepath.Dir(p), link)),
 	}, nil
 }
 
 func statFile(fs FS, root string) (os.DirEntry, error) {
 	var out os.DirEntry
 
-	root = filepath.FromSlash(filepath.Clean(root))
-	if root == string(filepath.Separator) || root == "." {
+	root = filepath.ToSlash(filepath.Clean(root))
+	if root == "/" || root == "." {
 		return nil, nil
 	}
 
@@ -146,6 +146,7 @@ func statFile(fs FS, root string) (os.DirEntry, error) {
 		if err != nil {
 			return err
 		}
+		p = filepath.ToSlash(filepath.Clean(p))
 		if p != root {
 			return errors.Errorf("expected single entry %q but got %q", root, p)
 		}
@@ -168,8 +169,8 @@ func statFile(fs FS, root string) (os.DirEntry, error) {
 func readDir(fs FS, root string) ([]os.DirEntry, error) {
 	var out []os.DirEntry
 
-	root = filepath.FromSlash(filepath.Clean(root))
-	if root == string(filepath.Separator) || root == "." {
+	root = filepath.ToSlash(filepath.Clean(root))
+	if root == "/" || root == "." {
 		root = "."
 		out = make([]gofs.DirEntry, 0)
 	}
@@ -178,6 +179,7 @@ func readDir(fs FS, root string) ([]os.DirEntry, error) {
 		if err != nil {
 			return err
 		}
+		p = filepath.ToSlash(filepath.Clean(p))
 		if p == root {
 			if !entry.IsDir() {
 				return errors.WithStack(&os.PathError{Op: "walk", Path: root, Err: syscall.ENOTDIR})

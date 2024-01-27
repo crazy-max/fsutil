@@ -125,7 +125,7 @@ func (r *symlinkResolver) readSymlink(p string, allowWildcard bool) ([]string, e
 		return nil, errors.WithStack(&os.PathError{Path: p, Err: syscall.EBADMSG, Op: "fileinfo without stat info"})
 	}
 
-	link := filepath.Clean(stat.Linkname)
+	link := filepath.FromSlash(filepath.Clean(stat.Linkname))
 	if filepath.IsAbs(link) {
 		return []string{link}, nil
 	}

@@ -250,12 +250,18 @@ func (dw *RootDiskWriter) requestAsyncFileData(p, dest string, fi os.FileInfo, s
 		}
 		defer lease.Release()
 
-		w := &rootLazyFileWriter{lease: lease}
+		entry, err := OpenRootEntry(lease.root, lease.base)
+		if err != nil {
+			return err
+		}
+		defer entry.Close()
+
+		w := &rootLazyFileWriter{entry: entry}
 		if err := dw.processChange(dw.egCtx, ChangeKindAdd, p, fi, w); err != nil {
 			w.Close()
 			return err
 		}
-		return rootChtimes(lease.root, lease.base, st.ModTime) // TODO: parent dirs
+		return chtimesRootEntry(entry, st.ModTime) // TODO: parent dirs
 	})
 }
 
@@ -304,7 +310,7 @@ func rootChtimes(root Root, p string, un int64) error {
 }
 
 type rootLazyFileWriter struct {
-	lease    *rootLease
+	entry    *RootEntry
 	f        *os.File
 	fileMode *os.FileMode
 	closed   bool
@@ -312,21 +318,21 @@ type rootLazyFileWriter struct {
 
 func (lfw *rootLazyFileWriter) Write(dt []byte) (int, error) {
 	if lfw.f == nil {
-		file, err := lfw.lease.root.OpenFile(lfw.lease.base, os.O_WRONLY, 0)
+		file, err := openRootEntryWriteFile(lfw.entry)
 		if os.IsPermission(err) {
 			// retry after chmod
-			fi, er := lfw.lease.root.Stat(lfw.lease.base)
+			fi, er := lfw.entry.root.Stat(lfw.entry.path)
 			if er == nil {
 				mode := fi.Mode()
 				lfw.fileMode = &mode
-				er = lfw.lease.root.Chmod(lfw.lease.base, mode|0222)
+				er = chmodRootEntry(lfw.entry, mode|0222)
 				if er == nil {
-					file, err = lfw.lease.root.OpenFile(lfw.lease.base, os.O_WRONLY, 0)
+					file, err = openRootEntryWriteFile(lfw.entry)
 				}
 			}
 		}
 		if err != nil {
-			return 0, errors.Wrapf(err, "failed to open %s", lfw.lease.base)
+			return 0, errors.Wrapf(err, "failed to open %s", lfw.entry.path)
 		}
 		lfw.f = file
 	}
@@ -344,7 +350,7 @@ func (lfw *rootLazyFileWriter) Close() error {
 		err = lfw.f.Close()
 	}
 	if err == nil && lfw.fileMode != nil {
-		err = lfw.lease.root.Chmod(lfw.lease.base, *lfw.fileMode)
+		err = chmodRootEntry(lfw.entry, *lfw.fileMode)
 	}
 	return err
 }

@@ -25,21 +25,33 @@ func rewriteRootEntryMetadata(entry *RootEntry, stat *types.Stat) error {
 		return entry.ChtimesNoFollow(mtime, mtime)
 	}
 
-	if err := entry.ChmodNoFollow(os.FileMode(stat.Mode)); err != nil {
-		if !errors.Is(err, syscall.ENOSYS) && !errors.Is(err, syscall.EOPNOTSUPP) {
-			return errors.WithStack(err)
-		}
-		if err := entry.root.Chmod(entry.path, os.FileMode(stat.Mode)); err != nil {
-			return errors.WithStack(err)
-		}
+	if err := chmodRootEntry(entry, os.FileMode(stat.Mode)); err != nil {
+		return err
 	}
-	if err := entry.ChtimesNoFollow(mtime, mtime); err != nil {
-		return errors.WithStack(err)
-	}
+	return entry.ChtimesNoFollow(mtime, mtime)
+}
 
-	return nil
+func chtimesRootEntry(entry *RootEntry, un int64) error {
+	t := time.Unix(0, un)
+	return entry.ChtimesNoFollow(t, t)
 }
 
 func openRootEntryFile(entry *RootEntry, mode os.FileMode) (*os.File, error) {
 	return entry.OpenFileNoFollow(os.O_CREATE|os.O_WRONLY, mode)
+}
+
+func openRootEntryWriteFile(entry *RootEntry) (*os.File, error) {
+	return entry.OpenFileNoFollow(os.O_WRONLY, 0)
+}
+
+func chmodRootEntry(entry *RootEntry, mode os.FileMode) error {
+	if err := entry.ChmodNoFollow(mode); err != nil {
+		if !errors.Is(err, syscall.ENOSYS) && !errors.Is(err, syscall.EOPNOTSUPP) {
+			return errors.WithStack(err)
+		}
+		if err := entry.root.Chmod(entry.path, mode); err != nil {
+			return errors.WithStack(err)
+		}
+	}
+	return nil
 }
